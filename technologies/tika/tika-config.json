@@ -1,0 +1,44 @@
+{
+  "parsers": [
+    {
+      "pdf-parser": {
+        "extractInlineImages": true,
+        "enableAutoSpace": true,
+        "pages": {
+          "text": "OCR",
+          "render": {
+            "dpi": 300,
+            "imageType": "RGB",
+            "imageFormat": "PNG",
+            "imageQuality": 0.85
+          }
+        }
+      }
+    },
+    {
+      "default-parser": {}
+    }
+  ],
+  "engines": {
+    "tesseract": {
+      "tesseract-ocr-parser": {
+        "language": "nld+eng",
+        "timeoutMillis": 300000,
+        "minFileSizeToOcr": 100,
+        "maxFileSizeToOcr": 100000000
+      }
+    }
+  },
+  "text-recognizers": [
+    {
+      "engine": "tesseract"
+    }
+  ],
+  "server": {},
+  "parse-context": {
+    "timeout-limits": {
+      "totalTaskTimeoutMillis": 300000,
+      "progressTimeoutMillis": 120000
+    }
+  }
+}

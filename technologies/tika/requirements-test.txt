@@ -1,0 +1,3 @@
+# Synthetic PDF fixture generators; not required by the extraction client.
+Pillow==13.0.0
+reportlab==5.1.0
