@@ -12,6 +12,18 @@ import html2text
 PARSE_REQUEST_TIMEOUT = (5, 450)
 
 
+def annotate_parse_status(metadata: Dict[Any, Any]) -> None:
+    """Expose HTTP-200 partial results instead of treating them as full parses."""
+    deadline = metadata.get("tk:exception:task-deadline-reached", False)
+    values = deadline if isinstance(deadline, list) else [deadline]
+    if any(str(value).lower() == "true" for value in values):
+        metadata["Parse-Status"] = "PARTIAL_TIMEOUT"
+        metadata["error"] = "Partial parse: Tika document deadline reached"
+    elif "tk:exception:container-exception" in metadata:
+        metadata["Parse-Status"] = "PARSE_EXCEPTION"
+        metadata["error"] = "Tika reported a metadata parse exception"
+
+
 class TikaServer:
     """Manages Tika server connection and status."""
 
@@ -89,8 +101,7 @@ class TikaServer:
                 )
                 if response.status_code == 200:
                     metadata = response.json()
-                    if "tk:exception:container-exception" in metadata:
-                        metadata["error"] = "Tika reported a metadata parse exception"
+                    annotate_parse_status(metadata)
                     return metadata
                 return {"error": f"Failed to extract metadata: {response.status_code}"}
         except Exception as e:
@@ -108,23 +119,27 @@ class TikaServer:
         content = None
         html_content = None
         error = None
+        metadata = {}
 
         try:
-            # First extract metadata
-            metadata = self.extract_metadata(abs_path)
-
             # Read the PDF file
             with open(abs_path, "rb") as pdf_file:
-                # Tika 4 selects the output handler in the URL. OCR is configured
-                # on the server; the former X-Tika-PDF* headers are unsupported.
+                # Keep HTML and timeout/exception metadata from the same parse.
+                # A separate /meta request can finish differently from this one.
                 response = requests.put(
-                    f"{self.base_url}/tika/html",
+                    f"{self.base_url}/tika/json/html",
                     data=pdf_file,
                     timeout=PARSE_REQUEST_TIMEOUT,
                 )
 
                 if response.status_code == 200:
-                    html_content = response.text
+                    metadata = response.json()
+                    html_content = metadata.pop("tk:content", None)
+                    annotate_parse_status(metadata)
+                    if "error" in metadata:
+                        return f"Error parsing PDF: {metadata['error']}", metadata, None
+                    if not isinstance(html_content, str):
+                        return "Error parsing PDF: Tika returned no HTML content", metadata, None
 
                     # Tika 4 does not return the old OCR response headers. Do not
                     # mislabel successfully OCRed documents as non-OCR documents.

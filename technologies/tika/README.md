@@ -142,7 +142,7 @@ Edit `docker-compose.yml` to adjust:
 Tika 4 loads `tika-config.json` via the explicit `-c` server argument. The
 configuration preserves OCR-only processing, 300 DPI RGB PNG rendering and
 Dutch + English recognition. The image installs the Dutch Tesseract model.
-The client requests `/tika/html`; Tika 4 no longer selects HTML through
+The client requests `/tika/json/html`; Tika 4 no longer selects HTML through
 `Accept` or accepts the former `X-Tika-PDF*` configuration headers. OCR
 response headers are no longer available, so metadata reports that the
 server does not supply an OCR-applied flag.
@@ -161,7 +161,7 @@ TIKA_TEST_URL=http://127.0.0.1:9998 python -m unittest discover -s tests -v
 The optional integration tests create their own text and scanned PDFs in
 temporary directories, verify real OCR, HTML, Markdown and PDF metadata, and
 never start containers or read existing documents. Without `TIKA_TEST_URL`,
-only the five client regression tests run.
+only the seven client regression tests run.
 
 Migration references: [Tika Server 4 migration](https://tika.apache.org/docs/4.2.x/migration-to-4x/migrating-tika-server-4x.html),
 [PDF configuration](https://tika.apache.org/docs/4.2.x/configuration/parsers/pdf-parser.html),
@@ -172,3 +172,8 @@ documents, with a 120-second progress watchdog. Client parsing reads allow
 450 seconds: the document budget plus watchdog wind-down and 30 seconds of
 response slack. Readiness timeouts are retried within the bounded polling loop.
 See [Tika timeout behavior](https://tika.apache.org/docs/4.2.x/pipes/timeouts.html).
+
+HTML and metadata come from one structured parse response. HTTP-200 results
+marked with `tk:exception:task-deadline-reached=true` carry
+`Parse-Status: PARTIAL_TIMEOUT` and an explicit error. The evaluation skips
+these truncated documents instead of saving them as ordinary successful output.

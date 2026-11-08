@@ -20,16 +20,45 @@ class ClientCompatibility(unittest.TestCase):
             pdf.write_bytes(b"%PDF-1.4\n%%EOF")
             client = module.TikaServer()
             client.is_ready = True
-            metadata = Mock(status_code=200)
-            metadata.json.return_value = {"Content-Type": "application/pdf"}
-            html = Mock(status_code=200, text="<html><body><p>Synthetic content</p></body></html>")
-            with patch.object(module.requests, "put", side_effect=[metadata, html]) as put:
+            response = Mock(status_code=200)
+            response.json.return_value = {"Content-Type": "application/pdf", "tk:content": "<html><body><p>Synthetic content</p></body></html>"}
+            with patch.object(module.requests, "put", return_value=response) as put:
                 content, result, raw_html = client.parse_pdf(str(pdf))
+            put.assert_called_once()
             self.assertIn("Synthetic content", content)
             self.assertIn("<html>", raw_html)
-            self.assertEqual(put.call_args_list[1].args[0], "http://localhost:9998/tika/html")
-            self.assertNotIn("X-Tika-PDFOcrStrategy", put.call_args_list[1].kwargs.get("headers", {}))
+            self.assertEqual(put.call_args.args[0], "http://localhost:9998/tika/json/html")
+            self.assertNotIn("X-Tika-PDFOcrStrategy", put.call_args.kwargs.get("headers", {}))
             self.assertEqual(result["OCR-Applied"], "Not reported by Tika 4")
+
+    def test_deadline_truncated_content_is_not_a_success(self):
+        for flag in (True, "true", ["true"]):
+            with self.subTest(flag=flag), tempfile.NamedTemporaryFile() as pdf:
+                client = module.TikaServer()
+                client.is_ready = True
+                response = Mock(status_code=200)
+                response.json.return_value = {
+                    "tk:content": "<html><body>Partial synthetic result</body></html>",
+                    "tk:exception:task-deadline-reached": flag,
+                }
+                with patch.object(module.requests, "put", return_value=response) as put:
+                    content, metadata, html = client.parse_pdf(pdf.name)
+                put.assert_called_once()
+                self.assertTrue(content.startswith("Error parsing PDF: Partial parse"))
+                self.assertEqual(metadata["Parse-Status"], "PARTIAL_TIMEOUT")
+                self.assertIsNone(html)
+
+    def test_false_deadline_flag_keeps_complete_content(self):
+        with tempfile.NamedTemporaryFile() as pdf:
+            client = module.TikaServer()
+            client.is_ready = True
+            response = Mock(status_code=200)
+            response.json.return_value = {"tk:content": "<html><body>Complete synthetic result</body></html>", "tk:exception:task-deadline-reached": "false"}
+            with patch.object(module.requests, "put", return_value=response):
+                content, metadata, html = client.parse_pdf(pdf.name)
+            self.assertIn("Complete synthetic result", content)
+            self.assertNotIn("error", metadata)
+            self.assertIsNotNone(html)
 
     def test_slow_readiness_retries_then_returns_false(self):
         client = module.TikaServer()
