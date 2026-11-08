@@ -1,4 +1,4 @@
-FROM apache/tika:3.1.0.0-full
+FROM apache/tika:4.2.0-1-full
 
 USER root
 
