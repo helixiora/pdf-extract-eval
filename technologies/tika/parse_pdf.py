@@ -12,8 +12,8 @@ import html2text
 class TikaServer:
     """Manages Tika server connection and status."""
 
-    def __init__(self):
-        self.base_url = "http://localhost:9998"
+    def __init__(self, base_url: str = "http://localhost:9998"):
+        self.base_url = base_url.rstrip("/")
         self.is_ready = False
         self.version = None
         self.parsers = None
@@ -39,7 +39,7 @@ class TikaServer:
         print("Waiting for Tika service to be ready...")
         for _ in range(10):
             try:
-                response = requests.get(f"{self.base_url}/tika")
+                response = requests.get(f"{self.base_url}/tika", timeout=10)
                 if response.status_code == 200:
                     print("Tika service is ready!")
                     self._check_version()
@@ -54,7 +54,7 @@ class TikaServer:
     def _check_version(self):
         """Check and store Tika version and capabilities."""
         try:
-            response = requests.get(f"{self.base_url}/version")
+            response = requests.get(f"{self.base_url}/version", timeout=10)
             if response.status_code == 200:
                 self.version = response.text
                 print(f"Tika Server Version: {self.version}")
@@ -62,6 +62,7 @@ class TikaServer:
             parsers_response = requests.get(
                 f"{self.base_url}/parsers/details",
                 headers={"Accept": "application/json"},
+                timeout=10,
             )
             if parsers_response.status_code == 200:
                 self.parsers = parsers_response.json()
@@ -81,9 +82,13 @@ class TikaServer:
                     f"{self.base_url}/meta",
                     headers={"Accept": "application/json"},
                     data=pdf_file,
+                    timeout=(5, 310),
                 )
                 if response.status_code == 200:
-                    return response.json()
+                    metadata = response.json()
+                    if "tk:exception:container-exception" in metadata:
+                        metadata["error"] = "Tika reported a metadata parse exception"
+                    return metadata
                 return {"error": f"Failed to extract metadata: {response.status_code}"}
         except Exception as e:
             return {"error": f"Error extracting metadata: {str(e)}"}
@@ -107,29 +112,20 @@ class TikaServer:
 
             # Read the PDF file
             with open(abs_path, "rb") as pdf_file:
-                headers = {
-                    "Accept": "text/html",
-                    "X-Tika-PDFOcrStrategy": "ocr_only",
-                }
+                # Tika 4 selects the output handler in the URL. OCR is configured
+                # on the server; the former X-Tika-PDF* headers are unsupported.
                 response = requests.put(
-                    f"{self.base_url}/tika",
-                    headers=headers,
+                    f"{self.base_url}/tika/html",
                     data=pdf_file,
+                    timeout=(5, 310),
                 )
 
                 if response.status_code == 200:
                     html_content = response.text
 
-                    # Check if OCR was used
-                    ocr_applied = "X-Tika-OCRed-Content" in response.headers
-                    if ocr_applied:
-                        metadata["OCR-Applied"] = "Yes"
-                        if "X-Tika-OCR-Language" in response.headers:
-                            metadata["OCR-Language"] = response.headers[
-                                "X-Tika-OCR-Language"
-                            ]
-                    else:
-                        metadata["OCR-Applied"] = "No"
+                    # Tika 4 does not return the old OCR response headers. Do not
+                    # mislabel successfully OCRed documents as non-OCR documents.
+                    metadata["OCR-Applied"] = "Not reported by Tika 4"
 
                     if output_format == "markdown":
                         filename = os.path.basename(pdf_path)

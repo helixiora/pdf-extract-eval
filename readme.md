@@ -8,7 +8,7 @@ This repository serves as a testing ground for various PDF text extraction techn
 
 Located in `technologies/tika/`
 
-- Uses Apache Tika 3.1.0 with Tesseract OCR
+- Uses Apache Tika 4.2.0 with Tesseract OCR
 - Supports both text-based and scanned PDFs
 - Includes JPEG2000 image support
 - Primary HTML output with conversion to other formats
