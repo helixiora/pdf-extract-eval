@@ -11,10 +11,6 @@ updates:
       all-dependencies:
         patterns:
           - '*'
-      security-updates:
-        applies-to: security-updates
-        patterns:
-          - '*'
   - package-ecosystem: pip
     directory: /technologies/tika
     schedule:
