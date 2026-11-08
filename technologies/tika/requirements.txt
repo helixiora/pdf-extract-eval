@@ -1,4 +1,4 @@
-html2text==2024.2.26
-python-dotenv==1.0.1
-requests==2.32.3
-urllib3==2.3.0
+html2text==2025.4.15
+python-dotenv==1.2.4
+requests==2.34.2
+urllib3==2.8.0
