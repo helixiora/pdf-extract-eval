@@ -31,6 +31,36 @@ class ClientCompatibility(unittest.TestCase):
             self.assertNotIn("X-Tika-PDFOcrStrategy", put.call_args_list[1].kwargs.get("headers", {}))
             self.assertEqual(result["OCR-Applied"], "Not reported by Tika 4")
 
+    def test_slow_readiness_retries_then_returns_false(self):
+        client = module.TikaServer()
+        with (
+            patch.object(module.subprocess, "run", return_value=Mock(stdout="owned-test-container")),
+            patch.object(module.requests, "get", side_effect=module.requests.exceptions.ReadTimeout) as get,
+            patch.object(module.time, "sleep") as sleep,
+        ):
+            self.assertFalse(client.ensure_running())
+        self.assertEqual(get.call_count, 10)
+        self.assertEqual(sleep.call_count, 10)
+
+    def test_readiness_recovers_after_a_timeout(self):
+        client = module.TikaServer()
+        with (
+            patch.object(module.subprocess, "run", return_value=Mock(stdout="owned-test-container")),
+            patch.object(module.requests, "get", side_effect=[module.requests.exceptions.ReadTimeout(), Mock(status_code=200)]),
+            patch.object(module.time, "sleep"),
+            patch.object(client, "_check_version"),
+        ):
+            self.assertTrue(client.ensure_running())
+        self.assertTrue(client.is_ready)
+
+    def test_client_allows_document_budget_and_watchdog_grace(self):
+        import json
+        config = json.loads((ROOT / "tika-config.json").read_text())
+        limits = config["parse-context"]["timeout-limits"]
+        self.assertEqual(limits["totalTaskTimeoutMillis"], 300000)
+        self.assertGreater(module.PARSE_REQUEST_TIMEOUT[1] * 1000,
+                           limits["totalTaskTimeoutMillis"] + limits["progressTimeoutMillis"])
+
     def test_metadata_parse_exception_is_not_silent_success(self):
         with tempfile.NamedTemporaryFile() as pdf:
             client = module.TikaServer()

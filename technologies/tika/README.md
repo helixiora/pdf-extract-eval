@@ -161,8 +161,14 @@ TIKA_TEST_URL=http://127.0.0.1:9998 python -m unittest discover -s tests -v
 The optional integration tests create their own text and scanned PDFs in
 temporary directories, verify real OCR, HTML, Markdown and PDF metadata, and
 never start containers or read existing documents. Without `TIKA_TEST_URL`,
-only the two client regression tests run.
+only the five client regression tests run.
 
 Migration references: [Tika Server 4 migration](https://tika.apache.org/docs/4.2.x/migration-to-4x/migrating-tika-server-4x.html),
 [PDF configuration](https://tika.apache.org/docs/4.2.x/configuration/parsers/pdf-parser.html),
 and [Tesseract configuration](https://tika.apache.org/docs/4.2.x/configuration/parsers/tesseract-ocr-parser.html).
+
+The server enforces a 300-second whole-document budget, including embedded
+documents, with a 120-second progress watchdog. Client parsing reads allow
+450 seconds: the document budget plus watchdog wind-down and 30 seconds of
+response slack. Readiness timeouts are retried within the bounded polling loop.
+See [Tika timeout behavior](https://tika.apache.org/docs/4.2.x/pipes/timeouts.html).

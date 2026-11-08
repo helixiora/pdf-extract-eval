@@ -34,5 +34,11 @@
       "engine": "tesseract"
     }
   ],
-  "server": {}
+  "server": {},
+  "parse-context": {
+    "timeout-limits": {
+      "totalTaskTimeoutMillis": 300000,
+      "progressTimeoutMillis": 120000
+    }
+  }
 }

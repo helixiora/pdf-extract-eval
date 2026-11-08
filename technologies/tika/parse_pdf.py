@@ -8,6 +8,9 @@ import json
 from typing import Dict, Any, Tuple, Optional
 import html2text
 
+# Server budget: 300s document deadline + 120s watchdog grace + 30s response slack.
+PARSE_REQUEST_TIMEOUT = (5, 450)
+
 
 class TikaServer:
     """Manages Tika server connection and status."""
@@ -45,7 +48,7 @@ class TikaServer:
                     self._check_version()
                     self.is_ready = True
                     return True
-            except requests.exceptions.ConnectionError:
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
                 time.sleep(1)
 
         print("Failed to start Tika service")
@@ -82,7 +85,7 @@ class TikaServer:
                     f"{self.base_url}/meta",
                     headers={"Accept": "application/json"},
                     data=pdf_file,
-                    timeout=(5, 310),
+                    timeout=PARSE_REQUEST_TIMEOUT,
                 )
                 if response.status_code == 200:
                     metadata = response.json()
@@ -117,7 +120,7 @@ class TikaServer:
                 response = requests.put(
                     f"{self.base_url}/tika/html",
                     data=pdf_file,
-                    timeout=(5, 310),
+                    timeout=PARSE_REQUEST_TIMEOUT,
                 )
 
                 if response.status_code == 200:
